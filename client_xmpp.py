@@ -17,14 +17,12 @@ class Client(slixmpp.ClientXMPP):
         self.add_event_handler("chatstate_composing", self.receive_notification)
 
     async def start(self, event):
-        # Get contacts and setting status after loging in
         self.send_presence()
         await self.get_roster()
 
         if self.just_registered:
-            print("You can now login using the created account.")
-            self.disconnect()
-        return
+            print("Account successfully created! You're now logged in.")
+            self.just_registered = False  # Reset this flag
 
         # Menu after logging in or creating account
         menu = """
@@ -95,47 +93,84 @@ class Client(slixmpp.ClientXMPP):
 
     # Function to delete an account from the server
     def delete_account(self):
-        print("Function not yet implemented.")
+        try:
+            self.register_plugin("xep_0030")  # Service Discovery
+            self.register_plugin("xep_0004")  # Data forms
+            self.register_plugin("xep_0066")  # Out-of-band Data
+            self.register_plugin("xep_0077")  # In-band Registration
+            reg = self.plugin["xep_0077"]
+            reg.unregister()
+            print("Account Deleted Successfully!")
+        except IqError as e:
+            print("Could not delete account:", e.iq["error"]["text"])
+        except IqTimeout:
+            print("Request timed out")
 
     # Function to join a group chat
     def join_group(self):
-        print("Function not yet implemented.")
+        room_jid = input(
+            "Enter the JID of the group you want to join (e.g. room@server.tld): "
+        )
+        nick = input("Enter the nickname you want to use in the group: ")
+        self.plugin["xep_0045"].join_muc(room_jid, nick)
 
     # Function to send a message to a group
     def send_group_message(self):
-        print("Function not yet implemented.")
+        room_jid = input("Enter the JID of the group you want to send a message to: ")
+        msg_body = input("Enter your message: ")
+        self.send_message(mto=room_jid, mbody=msg_body, mtype="groupchat")
 
     # Function to send a private message
     def private_message(self):
-        print("Function not yet implemented.")
+        recipient = input("Enter the recipient's JID: ")
+        msg_body = input("Enter your message: ")
+        self.send_message(mto=recipient, mbody=msg_body, mtype="chat")
 
     # Function to show the detail from a specific contact
     def show_contact_details(self):
-        print("Function not yet implemented.")
+        jid_to_show = input(
+            "Enter the JID of the contact whose details you want to see: "
+        )
+
+        if jid_to_show in self.client_roster:
+            contact = self.client_roster[jid_to_show]
+            print("JID:", jid_to_show)
+            print("Subscription:", contact["subscription"])
+            for group in contact["groups"]:
+                print("Group:", group)
+            print("Online:", "Yes" if contact["online"] else "No")
+        else:
+            print("No such contact in roster.")
 
     # Function to show every contact and group
     def show_contacts(self):
-        print("Function not yet implemented.")
+        for jid in self.client_roster.keys():
+            print(jid)
 
     # Function to add a contact
     def add_contact(self):
-        print("Function not yet implemented.")
+        jid_to_add = input("Enter the JID of the contact you want to add: ")
+        self.send_presence_subscription(pto=jid_to_add)
 
     # Function to change the presence
     def change_presence(self):
-        print("Function not yet implemented.")
+        show = input("Enter your status (chat, away, xa, dnd, available): ")
+        status = input("Enter a status message (optional): ")
+        self.send_presence(pshow=show, pstatus=status)
 
     # Function when you receive a message
     def get_message(self, message):
-        print("Function not yet implemented.")
+        if message["type"] in ("chat", "normal"):
+            print("{} says: {}".format(message["from"], message["body"]))
 
     # Function to send notification while typing a message
     def send_notification(self, recipient, state):
-        print("Function not yet implemented.")
+        chatstate = slixmpp.plugins.xep_0085.ChatStateProtocol(self)
+        chatstate.send_chat_state(recipient, state)
 
     # Function when you receive a notification
     def receive_notification(self, chatstate):
-        print("Function not yet implemented.")
+        print("{} is {}".format(chatstate["from"], chatstate["chatstate"]))
 
     # Function to register a new account to the server from the client menu
     async def register(self, iq):
@@ -147,7 +182,6 @@ class Client(slixmpp.ClientXMPP):
         try:
             await responce.send()
             print("Account created")
-            self.disconnect()
             self.just_registered = True
         except IqError as e:
             print("Could not register account")
