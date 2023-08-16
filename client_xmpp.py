@@ -1,5 +1,6 @@
 import slixmpp
 from slixmpp.exceptions import IqError, IqTimeout
+import asyncio
 
 # Class wiht al the XMPP functions
 class Client(slixmpp.ClientXMPP):
@@ -33,28 +34,33 @@ class Client(slixmpp.ClientXMPP):
 
         # Menu after logging in or creating account
         menu = """
-        1. Log Out
-        2. Delete Account
-        3. Show contacts and status
-        4. Contact Details
-        5. Add Contact
-        6. Send Private Message
-        7. Join Group
-        8. Send Group Message
-        9. Define Presence
-        10. Send File
-        11. Chat Answers
-        """
+        📌 Welcome to XMPP Chat Client
+        🖥 Logged in as: {}
+
+        ➡️ Options:
+
+        [1] Log Out (End your session)
+        [2] Delete Account (Remove your account)
+        [3] Show contacts (View online friends)
+        [4] Contact Details (Info on a specific contact)
+        [5] Add Contact (Add someone new)
+        [6] Send Private Message (Chat one-on-one)
+        [7] Join Group (Join a group chat)
+        [8] Send Group Message (Chat in a group)
+        [9] Define Presence (Set your status)
+        [10] Send File (Share a document or picture)
+        [11] Chat Answers (Get automated responses)
+
+        Type the number corresponding to your choice and hit Enter.
+        """.format(self.jid)
 
         # Loop for menu options
-        show = True
-        while show:
-            print("*" * 50)
-            print("Bienvenido ", self.jid)
+        while True:
+            print("*" * 60)
             print(menu)
-            print("*" * 50)
+            print("*" * 60)
 
-            choose = input("Choose an option: ")
+            choose = input("Your choice: ")
 
             # Functions for every option
             if choose == "1":
@@ -65,7 +71,7 @@ class Client(slixmpp.ClientXMPP):
             elif choose == "2":
                 print("Delete Account")
                 show = False
-                self.delete_account()
+                await self.async_delete_account()
                 print("Account Deleted")
                 return
             elif choose == "3":
@@ -101,19 +107,26 @@ class Client(slixmpp.ClientXMPP):
             await self.get_roster()
 
     # Function to delete an account from the server
-    def delete_account(self):
+    async def async_delete_account(self):
         try:
-            self.register_plugin("xep_0030")  # Service Discovery
-            self.register_plugin("xep_0004")  # Data forms
-            self.register_plugin("xep_0066")  # Out-of-band Data
-            self.register_plugin("xep_0077")  # In-band Registration
-            reg = self.plugin["xep_0077"]
-            reg.unregister()
-            print("Account Deleted Successfully!")
-        except IqError as e:
-            print("Could not delete account:", e.iq["error"]["text"])
+            if input("Are you sure you want to delete? [yes/no]: ") == "yes":
+                self.register_plugin("xep_0077") # In-band Registration
+
+                resp = self.Iq()
+                resp["type"] = "set"
+                resp["from"] = self.boundjid.user
+                resp["register"]["remove"] = True
+
+                await resp.send()
+                logging.info("Account deleted successfully.")
+                self.logout()
+        except IqError:
+            logging.error("Something went wrong.")
         except IqTimeout:
-            print("Request timed out")
+            logging.error("No response from server.")
+
+
+
 
     # Function to join a group chat
     def join_group(self):
@@ -137,27 +150,35 @@ class Client(slixmpp.ClientXMPP):
 
     # Function to show the detail from a specific contact
     def show_contact_details(self):
-        jid_to_show = input(
-            "Enter the JID of the contact whose details you want to see: "
-        )
+        self.get_roster()
+        contact_jid = input("Enter JID to see details: ")
+        print("\n", contact_jid)
+        
+        connections = self.client_roster.presence(contact_jid)
 
-        if jid_to_show in self.client_roster:
-            contact = self.client_roster[jid_to_show]
-            print("JID:", jid_to_show)
-            print("Subscription:", contact["subscription"])
-            for group in contact["groups"]:
-                print("Group:", group)
-            online_status = "Online" if contact["online"] else "Offline"
-            print("Status:", online_status)
+        if not connections:
+            print("No recent session for", contact_jid)
         else:
-            print("No such contact in roster.")
+            for resource, presence_data in connections.items():
+                show = presence_data.get('show', 'available')  # Default to 'available' if 'show' is not present
+                status = presence_data.get('status', '')  # Presence message/status
+                print(f"{resource} - Show: {show} - Status: {status}")
+
+
 
     # Function to show every contact and group
     def show_contacts(self):
-        for jid, contact in self.client_roster.items():
-            if contact["subscription"] in ["both", "to"]:
-                online_status = "Online" if contact["online"] else "Offline"
-                print(f"{jid} - {online_status}")
+        print("\nCONTACTS:")
+        contacts = self.client_roster.keys()
+        
+        if not contacts:
+            print("No contacts available.")
+        else:
+            for contact in contacts:
+                print("· ", contact)
+        print("-" * 40)
+        print("\n")
+
 
     # Function to add a contact
     def add_contact(self):
@@ -165,10 +186,35 @@ class Client(slixmpp.ClientXMPP):
         self.send_presence_subscription(pto=jid_to_add)
 
     # Function to change the presence
-    def change_presence(self):
-        show = input("Enter your status (chat, away, xa, dnd, available): ")
-        status = input("Enter a status message (optional): ")
-        self.send_presence(pshow=show, pstatus=status)
+    def change_presence(self, show=None):
+        show_options = ["chat", "away", "xa", "dnd", "custom"]
+        
+        if not show:
+            show = input(f"Set presence (options: {', '.join(show_options)}): ")
+        
+        status = None
+        if show == "custom":
+            show = input("show (chat, away, xa, dnd, or leave empty for available): ")
+            status = input("status: ")
+            if show not in ["chat", "away", "xa", "dnd", ""]:
+                print("Invalid 'show' value. Setting to available.")
+                show = None
+        else:
+            status_mappings = {
+                "chat": "Available",
+                "away": "Unavailable",
+                "xa": "Extended Away",
+                "dnd": "Do not Disturb"
+            }
+            status = status_mappings.get(show)
+        
+        try:
+            self.send_presence(pshow=show if show else None, pstatus=status)
+            print("Presence set.")
+        except (IqError, IqTimeout) as e:
+            print(f"Failed to set presence: {e}")
+
+
 
     # Function when you receive a message
     def get_message(self, message):
@@ -180,9 +226,10 @@ class Client(slixmpp.ClientXMPP):
         chatstate = slixmpp.plugins.xep_0085.ChatStateProtocol(self)
         chatstate.send_chat_state(recipient, state)
 
-    # Function when you receive a notification
     def receive_notification(self, chatstate):
-        print("{} is {}".format(chatstate["from"], chatstate["chatstate"]))
+        notification_type = str(chatstate["chatstate"])
+        if notification_type == "composing":
+            print(f"{chatstate['from']} is typing...")
 
     # Function to register a new account to the server from the client menu
     async def register(self, iq):

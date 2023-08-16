@@ -1,19 +1,5 @@
 from client_xmpp import Client
 from getpass import getpass  # Importando para seguridad de contraseña
-import threading
-import asyncio
-
-
-async def connect_with_timeout(chat_client, timeout):
-    try:
-        await asyncio.wait_for(chat_client.connect(), timeout=timeout)
-        await chat_client.process(forever=False)
-    except asyncio.TimeoutError:
-        print(f"Attempt failed due to timeout after {timeout} seconds. Retrying...")
-        chat_client.disconnect()
-    except Exception as e:
-        print(f"Attempt failed due to {str(e)}. Retrying...")
-
 
 # Initialization routine for a new user registration
 def initiate_registration(usr, pass_key):
@@ -59,20 +45,15 @@ def initiate_session(usr_id, pass_key):
     for plugin in plugins:
         chat_client.register_plugin(plugin)
 
-    chat_client.just_logged_in = True  # Set the flag
+    try:
+        chat_client.connect()
+        chat_client.process(forever=False)
+        print("Successfully connected!")
+    except Exception as e:
+        print(f"Attempt failed due to {e}.")
 
-    loop = asyncio.get_event_loop()
+    chat_client.disconnect()
 
-    MAX_RETRIES = 3
-    TIMEOUT = 10
-    for _ in range(MAX_RETRIES):
-        try:
-            loop.run_until_complete(connect_with_timeout(chat_client, TIMEOUT))
-            break
-        except Exception as e:
-            print(f"Attempt failed due to {e}. Retrying...")
-    else:
-        print("Failed to connect after multiple attempts.")
 
 
 # Stylish Menu Display
