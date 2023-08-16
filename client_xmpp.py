@@ -10,6 +10,8 @@ class Client(slixmpp.ClientXMPP):
 
         self.just_registered = False
 
+        self.just_logged_in = False
+
         # Event listeners
         self.add_event_handler("session_start", self.start)
         self.add_event_handler("register", self.register)
@@ -24,11 +26,16 @@ class Client(slixmpp.ClientXMPP):
             print("Account successfully created! You're now logged in.")
             self.just_registered = False  # Reset this flag
 
+        # Check if user has just logged in
+        elif self.just_logged_in:  # add this block
+            print("Successfully logged in!")
+            self.just_logged_in = False  # Reset this flag
+
         # Menu after logging in or creating account
         menu = """
         1. Log Out
         2. Delete Account
-        3. Show contacts
+        3. Show contacts and status
         4. Contact Details
         5. Add Contact
         6. Send Private Message
@@ -54,11 +61,13 @@ class Client(slixmpp.ClientXMPP):
                 print("Log Out")
                 self.disconnect()
                 show = False
+                return
             elif choose == "2":
                 print("Delete Account")
                 show = False
                 self.delete_account()
                 print("Account Deleted")
+                return
             elif choose == "3":
                 print("Show Contacts")
                 self.show_contacts()
@@ -138,14 +147,17 @@ class Client(slixmpp.ClientXMPP):
             print("Subscription:", contact["subscription"])
             for group in contact["groups"]:
                 print("Group:", group)
-            print("Online:", "Yes" if contact["online"] else "No")
+            online_status = "Online" if contact["online"] else "Offline"
+            print("Status:", online_status)
         else:
             print("No such contact in roster.")
 
     # Function to show every contact and group
     def show_contacts(self):
-        for jid in self.client_roster.keys():
-            print(jid)
+        for jid, contact in self.client_roster.items():
+            if contact["subscription"] in ["both", "to"]:
+                online_status = "Online" if contact["online"] else "Offline"
+                print(f"{jid} - {online_status}")
 
     # Function to add a contact
     def add_contact(self):
