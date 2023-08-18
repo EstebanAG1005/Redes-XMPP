@@ -1,29 +1,33 @@
 import slixmpp
 from slixmpp.exceptions import IqError, IqTimeout
-import asyncio
 
 # Class wiht al the XMPP functions
 class Client(slixmpp.ClientXMPP):
     def __init__(self, jid, password):
         slixmpp.ClientXMPP.__init__(self, jid, password)
 
+        self.add_event_handler("message_delivered", self.message_delivered)
         self.pending_messages = []
-
         self.use_aiodns = False
-
         self.just_registered = False
-
         self.just_logged_in = False
-
-        # Event listeners
         self.add_event_handler("session_start", self.start)
         self.add_event_handler("register", self.register)
         self.add_event_handler("message", self.get_message)
         self.add_event_handler("chatstate_composing", self.receive_notification)
 
+    # Note: This method has been moved out of the __init__ method
+    def message_delivered(self, msg_receipt):
+        print(f"Message delivered to {self.recipient}")
+
+
     async def start(self, event):
-        self.send_presence()
+        self.send_presence(self.show, self.stat)
         await self.get_roster()
+
+         # Add a delivery receipt request
+        self.send_message(mto=self.recipient, mbody=self.msg, mtype="chat",
+                        request_receipt=True)
 
         if self.just_registered:
             print("Account successfully created! You're now logged in.")
@@ -174,27 +178,19 @@ class Client(slixmpp.ClientXMPP):
 
 
 
-    # Function to show every contact and group
-    def show_contacts(self):
-        print("\nCONTACTS:")
-        contacts = self.client_roster.keys()
+    def show_contact(self):
+        # Show contact presence
+        self.get_roster()
 
-        if not contacts:
-            print("No contacts available.")
+        contact_jid = input("JID: ")
+        print("\n", contact_jid)
+        connections = self.client_roster.presence(contact_jid)
+
+        if connections == {}:
+            print("No recent session")
         else:
-            for contact in contacts:
-                connections = self.client_roster.presence(contact)
-                show = "N/A"
-                status = "N/A"
-
-                if connections:
-                    for _, presence_data in connections.items():
-                        show = presence_data.get('show', 'available')
-                        status = presence_data.get('status', '')
-                print(f"· {contact} - Show: {show} - Status: {status}")
-
-        print("-" * 40)
-        print("\n")
+            for device, presence in connections.items():
+                print(device, " - ", presence["show"])
 
 
     # Function to add a contact
@@ -203,33 +199,37 @@ class Client(slixmpp.ClientXMPP):
         self.send_presence_subscription(pto=jid_to_add)
 
     # Function to change the presence
-    def change_presence(self, show=None):
-        show_options = ["chat", "away", "xa", "dnd", "custom"]
-        
+    def presence(self, show=None):
+        # Set presence messages
         if not show:
-            show = input(f"Set presence (options: {', '.join(show_options)}): ")
-        
-        status = None
-        if show == "custom":
-            show = input("show (chat, away, xa, dnd, or leave empty for available): ")
+            show = input("show: [chat, away, xa, dnd, custom] ")
+
+        if show not in ["chat", "away", "xa", "dnd", "custom"]:
+            show = "chat"
+
+        if show == "chat":
+            status = "Available"
+        elif show == "away":
+            status = "Unavailable"
+        elif show == "xa":
+            status = "Bye"
+        elif show == "dnd":
+            status = "Do not Disturb"
+        elif show == "custom":
+            show = input("show: ")
             status = input("status: ")
-            if show not in ["chat", "away", "xa", "dnd", ""]:
-                print("Invalid 'show' value. Setting to available.")
-                show = None
-        else:
-            status_mappings = {
-                "chat": "Available",
-                "away": "Unavailable",
-                "xa": "Extended Away",
-                "dnd": "Do not Disturb"
-            }
-            status = status_mappings.get(show)
-        
+
+        if show not in ["chat", "away", "xa", "dnd"]:
+            show = "chat"
+            status = "Available"
+
         try:
-            self.send_presence(pshow=show if show else None, pstatus=status)
-            print("Presence set.")
-        except (IqError, IqTimeout) as e:
-            print(f"Failed to set presence: {e}")
+            self.send_presence(pshow=show, pstatus=status)
+            logging.info("Presence setted.")
+        except IqError:
+            logging.error("Something went wrong.")
+        except IqTimeout:
+            logging.error("No response from server.")
 
 
 
