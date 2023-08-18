@@ -7,6 +7,8 @@ class Client(slixmpp.ClientXMPP):
     def __init__(self, jid, password):
         slixmpp.ClientXMPP.__init__(self, jid, password)
 
+        self.pending_messages = []
+
         self.use_aiodns = False
 
         self.just_registered = False
@@ -49,13 +51,15 @@ class Client(slixmpp.ClientXMPP):
         [8] Send Group Message (Chat in a group)
         [9] Define Presence (Set your status)
         [10] Send File (Share a document or picture)
-        [11] Chat Answers (Get automated responses)
 
         Type the number corresponding to your choice and hit Enter.
         """.format(self.jid)
 
         # Loop for menu options
-        while True:
+        while self.pending_messages:
+            from_jid, body = self.pending_messages.pop(0)
+            print(f"\n{from_jid} says: {body}\n")
+
             print("*" * 60)
             print(menu)
             print("*" * 60)
@@ -96,11 +100,14 @@ class Client(slixmpp.ClientXMPP):
                 print("Define Presence")
                 self.change_presence()
             elif choose == "10":
-                print("Send File")
-                await self.send_file()
+                file_path = input("Enter the path to the file you want to send: ")
+                if not file_path:
+                    print("You must specify a file path.")
+                    continue
+
+                recipient = input("Enter the recipient's JID: ")
+                await self.send_file(file_path, recipient)
                 print("File Sent")
-            elif choose == "11":
-                print("Chat Answers")
             else:
                 print("Invalid Option")
 
@@ -135,6 +142,7 @@ class Client(slixmpp.ClientXMPP):
         )
         nick = input("Enter the nickname you want to use in the group: ")
         self.plugin["xep_0045"].join_muc(room_jid, nick)
+        print(f"Joined group {room_jid} as {nick}")
 
     # Function to send a message to a group
     def send_group_message(self):
@@ -170,12 +178,21 @@ class Client(slixmpp.ClientXMPP):
     def show_contacts(self):
         print("\nCONTACTS:")
         contacts = self.client_roster.keys()
-        
+
         if not contacts:
             print("No contacts available.")
         else:
             for contact in contacts:
-                print("· ", contact)
+                connections = self.client_roster.presence(contact)
+                show = "N/A"
+                status = "N/A"
+
+                if connections:
+                    for _, presence_data in connections.items():
+                        show = presence_data.get('show', 'available')
+                        status = presence_data.get('status', '')
+                print(f"· {contact} - Show: {show} - Status: {status}")
+
         print("-" * 40)
         print("\n")
 
@@ -219,7 +236,7 @@ class Client(slixmpp.ClientXMPP):
     # Function when you receive a message
     def get_message(self, message):
         if message["type"] in ("chat", "normal"):
-            print("{} says: {}".format(message["from"], message["body"]))
+            self.pending_messages.append((message["from"], message["body"]))
 
     # Function to send notification while typing a message
     def send_notification(self, recipient, state):
@@ -229,7 +246,7 @@ class Client(slixmpp.ClientXMPP):
     def receive_notification(self, chatstate):
         notification_type = str(chatstate["chatstate"])
         if notification_type == "composing":
-            print(f"{chatstate['from']} is typing...")
+            print(f"\n{chatstate['from']} is typing...\n")
 
     # Function to register a new account to the server from the client menu
     async def register(self, iq):
