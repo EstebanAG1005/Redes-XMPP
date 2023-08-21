@@ -1,10 +1,12 @@
 from client_xmpp import Client
-from getpass import getpass  # Importando para seguridad de contraseña
+from getpass import getpass
+import logging
 
 # Initialization routine for a new user registration
 def initiate_registration(usr, pass_key):
+    logging.basicConfig(level=logging.DEBUG)
+    
     chat_client = Client(usr, pass_key)
-    # Plugins to enhance XMPP functionality
     plugins = [
         "xep_0030",
         "xep_0004",
@@ -26,11 +28,13 @@ def initiate_registration(usr, pass_key):
     chat_client.process()
     chat_client.disconnect()
 
+    logging.getLogger().setLevel(logging.CRITICAL)
 
 # Routine to start chat session for a user
 def initiate_session(usr_id, pass_key):
+    logging.basicConfig(level=logging.DEBUG)
+    
     chat_client = Client(usr_id, pass_key)
-    # Plugins for XMPP session
     plugins = [
         "xep_0004",
         "xep_0030",
@@ -48,8 +52,8 @@ def initiate_session(usr_id, pass_key):
     chat_client.connect()
     chat_client.process(forever=False)
 
+    logging.getLogger().setLevel(logging.CRITICAL)
 
-# Stylish Menu Display
 menu_display = """
 ╔════════════════════════════════╗
 ║ 1. Start Chat Session          ║
@@ -58,7 +62,6 @@ menu_display = """
 ╚════════════════════════════════╝
 """
 
-# Command loop to interact with the user
 active = True
 
 while active:
@@ -66,18 +69,18 @@ while active:
 
     choice = input("Enter your choice: ")
 
-    if choice == "1":  # Start Chat Session
+    if choice == "1":
         print("Starting Chat Session...")
         usr_name = input("Enter your username (example@alumchat.xyz): ")
         usr_password = getpass("Enter your password: ")
         initiate_session(usr_name, usr_password)
-    elif choice == "2":  # Create New Account
+    elif choice == "2":
         print("Registering New Account...")
         new_username = input("Choose a username (example@alumchat.xyz): ")
         new_password = getpass("Choose a password: ")
         initiate_registration(new_username, new_password)
-    elif choice == "3":  # Exit the application
+    elif choice == "3":
         active = False
         print("Goodbye!")
-    else:  # Incorrect input
+    else:
         print("Please enter a valid option!")

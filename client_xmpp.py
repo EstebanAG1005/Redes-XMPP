@@ -1,5 +1,8 @@
 import slixmpp
 from slixmpp.exceptions import IqError, IqTimeout
+import logging
+import threading
+
 
 # Class wiht al the XMPP functions
 class Client(slixmpp.ClientXMPP):
@@ -9,6 +12,7 @@ class Client(slixmpp.ClientXMPP):
         self.use_aiodns = False
 
         self.just_registered = False
+        
 
         # Event listeners
         self.add_event_handler("session_start", self.start)
@@ -16,9 +20,18 @@ class Client(slixmpp.ClientXMPP):
         self.add_event_handler("message", self.get_message)
         self.add_event_handler("chatstate_composing", self.receive_notification)
 
+
+    def setup_logging(self, level):
+        logging.basicConfig(level=level)
+        logging.getLogger('slixmpp').setLevel(level)
+
+
     async def start(self, event):
         self.send_presence()
         await self.get_roster()
+
+        self.setup_logging(logging.CRITICAL)
+
 
         if self.just_registered:
             print("Account successfully created! You're now logged in.")
@@ -26,18 +39,24 @@ class Client(slixmpp.ClientXMPP):
 
         # Menu after logging in or creating account
         menu = """
-        1. Log Out
-        2. Delete Account
-        3. Show contacts
-        4. Contact Details
-        5. Add Contact
-        6. Send Private Message
-        7. Join Group
-        8. Send Group Message
-        9. Define Presence
-        10. Send File
-        11. Chat Answers
-        """
+        📌 Welcome to XMPP Chat Client
+        🖥 Logged in as: {}
+
+        ➡️ Options:
+
+        [1] Log Out (End your session)
+        [2] Delete Account (Remove your account)
+        [3] Show contacts (View online friends)
+        [4] Contact Details (Info on a specific contact)
+        [5] Add Contact (Add someone new)
+        [6] Send Private Message (Chat one-on-one)
+        [7] Join Group (Join a group chat)
+        [8] Send Group Message (Chat in a group)
+        [9] Define Presence (Set your status)
+        [10] Send File (Share a document or picture)
+
+        Type the number corresponding to your choice and hit Enter.
+        """.format(self.jid)
 
         # Loop for menu options
         show = True
@@ -84,8 +103,6 @@ class Client(slixmpp.ClientXMPP):
                 print("Send File")
                 await self.send_file()
                 print("File Sent")
-            elif choose == "11":
-                print("Chat Answers")
             else:
                 print("Invalid Option")
 
@@ -144,8 +161,22 @@ class Client(slixmpp.ClientXMPP):
 
     # Function to show every contact and group
     def show_contacts(self):
-        for jid in self.client_roster.keys():
-            print(jid)
+        groups = self.client_roster.groups()
+        
+        for group in groups:
+            print('*' * 50)
+            for username in groups[group]:
+                if username != self.jid:
+                    print('usuario: ', username)
+                    
+                    connections = self.client_roster.presence(username)
+                    if not connections:
+                        print('estado: Offline')
+                    else:
+                        for _, status in connections.items():
+                            print('estado: ', status.get('show', 'Available') or 'Available') 
+                    print('\n')
+        print('*' * 50)
 
     # Function to add a contact
     def add_contact(self):
@@ -153,10 +184,37 @@ class Client(slixmpp.ClientXMPP):
         self.send_presence_subscription(pto=jid_to_add)
 
     # Function to change the presence
-    def change_presence(self):
-        show = input("Enter your status (chat, away, xa, dnd, available): ")
-        status = input("Enter a status message (optional): ")
-        self.send_presence(pshow=show, pstatus=status)
+    def change_presence(self, show=None):
+        # Set presence messages
+        if not show:
+            show = input("show: [chat, away, xa, dnd, custom] ")
+
+        if show not in ["chat", "away", "xa", "dnd", "custom"]:
+            show = "chat"
+
+        if show == "chat":
+            status = "Available"
+        elif show == "away":
+            status = "Unavailable"
+        elif show == "xa":
+            status = "Bye"
+        elif show == "dnd":
+            status = "Do not Disturb"
+        elif show == "custom":
+            show = input("show: ")
+            status = input("status: ")
+
+        if show not in ["chat", "away", "xa", "dnd"]:
+            show = "chat"
+            status = "Available"
+
+        try:
+            self.send_presence(pshow=show, pstatus=status)
+            logging.info("Presence setted.")
+        except IqError:
+            logging.error("Something went wrong.")
+        except IqTimeout:
+            logging.error("No response from server.")
 
     # Function when you receive a message
     def get_message(self, message):
