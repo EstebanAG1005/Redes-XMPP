@@ -16,6 +16,8 @@ class Client(slixmpp.ClientXMPP):
         self.use_aiodns = False
 
         self.just_registered = False
+
+        
         
 
         # Event listeners
@@ -23,6 +25,7 @@ class Client(slixmpp.ClientXMPP):
         self.add_event_handler("register", self.register)
         self.add_event_handler("message", self.get_message)
         self.add_event_handler("chatstate_composing", self.receive_notification)
+        self.add_event_handler("presence_subscribe", self.subscription_request)  # Add this line to handle subscription requests
 
 
     def setup_logging(self, level):
@@ -221,6 +224,23 @@ class Client(slixmpp.ClientXMPP):
     def add_contact(self):
         jid_to_add = input("Enter the JID of the contact you want to add: ")
         self.send_presence_subscription(pto=jid_to_add)
+        print(f"Sent a contact request to {jid_to_add}. Awaiting their response...")
+    
+
+    def subscription_request(self, presence):
+        from_jid = presence["from"]
+        print(f"Received a contact request from {from_jid}.\nDo you want to accept? [yes/no]: ", end="")
+        
+        response = input()
+        if response == "yes":
+            # If the user wants to accept the subscription request
+            self.send_presence(pto=from_jid, ptype="subscribed")
+            self.send_presence(pto=from_jid, ptype="subscribe")  # Also send a subscription request back
+            print(f"You are now connected with {from_jid}.")
+        else:
+            # If the user wants to reject the subscription request
+            self.send_presence(pto=from_jid, ptype="unsubscribed")
+            print(f"Declined the contact request from {from_jid}.")
 
     # Function to change the presence
     def change_presence(self, show=None):
