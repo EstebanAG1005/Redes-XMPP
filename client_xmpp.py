@@ -23,9 +23,9 @@ class Client(slixmpp.ClientXMPP):
         # Event listeners
         self.add_event_handler("session_start", self.start)
         self.add_event_handler("register", self.register)
-        self.add_event_handler("message", self.get_message)
         self.add_event_handler("chatstate_composing", self.receive_notification)
         self.add_event_handler("presence_subscribe", self.subscription_request)  # Add this line to handle subscription requests
+        self.add_event_handler("message", self.message_callback)
 
 
     def setup_logging(self, level):
@@ -34,6 +34,8 @@ class Client(slixmpp.ClientXMPP):
 
 
     async def start(self, event):
+
+        
         self.send_presence()
         await self.get_roster()
 
@@ -43,6 +45,7 @@ class Client(slixmpp.ClientXMPP):
         if self.just_registered:
             print("Account successfully created! You're now logged in.")
             self.just_registered = False  # Reset this flag
+        
 
         # Menu after logging in or creating account
         menu = """
@@ -152,15 +155,20 @@ class Client(slixmpp.ClientXMPP):
     def send_group_message(self):
         room_jid = input("Enter the JID of the group you want to send a message to: ")
         while True:
-            self.change_status(room_jid, 'composing')
+            # self.change_status(room_jid, 'composing')
             msg_body = input("Escribe <<volver>> si deseas regresar al menu \n Mensaje... ")
-            self.change_status(room_jid, 'paused')
+            # self.change_status(room_jid, 'paused')
 
             if msg_body.lower() == "volver":
-                self.change_status(room_jid, 'gone')
+                # self.change_status(room_jid, 'gone')
                 break
             else:
                 self.send_message(mto=room_jid, mbody=msg_body, mtype="groupchat")
+    
+    def message_callback(self, msg):
+        # Si el mensaje es de tipo "groupchat", entonces es un mensaje de grupo.
+        if msg['type'] == 'groupchat':
+            print(f"[{msg['from']}] {msg['body']}")
 
 
     async def user_input(self, recipient):
@@ -187,38 +195,54 @@ class Client(slixmpp.ClientXMPP):
 
     # Function to show the detail from a specific contact
     def show_contact_details(self):
-        jid_to_show = input(
-            "Enter the JID of the contact whose details you want to see: "
-        )
+        # Pedir al usuario que ingrese el JID del contacto que desea ver
+        target_jid = input("Enter the JID of the contact whose details you want to see: ")
 
-        if jid_to_show in self.client_roster:
-            contact = self.client_roster[jid_to_show]
-            print("JID:", jid_to_show)
-            print("Subscription:", contact["subscription"])
-            for group in contact["groups"]:
-                print("Group:", group)
-            print("Online:", "Yes" if contact["online"] else "No")
-        else:
-            print("No such contact in roster.")
+        groups = self.client_roster.groups()
+
+        found = False
+        for group in groups:
+            for username in groups[group]:
+                if username == target_jid:
+                    found = True
+                    connections = self.client_roster.presence(username)
+                    if not connections:
+                        status = 'Offline'
+                    else:
+                        primary_status = list(connections.values())[0]
+                        status = primary_status.get('show')
+                        # Check if status is None or an empty string, then set to 'Available'.
+                        if not status:
+                            status = 'Available'
+                        # Capitalize the first letter.
+                        status = status.capitalize()
+                    print(f"JID: {username}\nStatus: {status}")
+
+        if not found:
+            print(f"No contact found with JID: {target_jid}")
 
     # Function to show every contact and group
     def show_contacts(self):
         groups = self.client_roster.groups()
         
         for group in groups:
-            print('*' * 50)
             for username in groups[group]:
                 if username != self.jid:
-                    print('usuario: ', username)
-                    
                     connections = self.client_roster.presence(username)
                     if not connections:
-                        print('estado: Offline')
+                        status = 'Offline'
                     else:
-                        for _, status in connections.items():
-                            print('estado: ', status.get('show', 'Available') or 'Available') 
-                    print('\n')
-        print('*' * 50)
+                        primary_status = list(connections.values())[0]
+                        status = primary_status.get('show')
+                        # Check if status is None or an empty string, then set to 'Available'.
+                        if not status:
+                            status = 'Available'
+                        # Capitalize the first letter.
+                        status = status.capitalize()
+
+                    print(f"{username}: {status}")
+
+
 
     # Function to add a contact
     def add_contact(self):
@@ -288,22 +312,22 @@ class Client(slixmpp.ClientXMPP):
                 self.send_message(mto=message["from"], mbody=reply, mtype='chat')
 
     
-        def create_group(self):
-            room_jid = input("Enter the JID of the group you want to create (e.g. room@server.tld): ")
-            nick = input("Enter the nickname you want to use as the group admin: ")
-            public = input("Do you want the group to be public? (yes/no): ").strip().lower()
+    def create_group(self):
+        room_jid = input("Enter the JID of the group you want to create (e.g. room@server.tld): ")
+        nick = input("Enter the nickname you want to use as the group admin: ")
+        public = input("Do you want the group to be public? (yes/no): ").strip().lower()
 
-            # Default value is private (0)
-            is_public = 1 if public == 'yes' else 0
-            
-            # Join the group to create it.
-            self.plugin["xep_0045"].join_muc(room_jid, nick)
+        # Default value is private (0)
+        is_public = 1 if public == 'yes' else 0
+        
+        # Join the group to create it.
+        self.plugin["xep_0045"].join_muc(room_jid, nick)
 
-            # Setting the room config
-            self.plugin["xep_0045"].set_room_config(room_jid, {"muc#roomconfig_persistentroom": 1, 
-                                                            "muc#roomconfig_publicroom": is_public})
-            
-            print(f"Group {room_jid} created successfully!")
+        # Setting the room config
+        self.plugin["xep_0045"].set_room_config(room_jid, {"muc#roomconfig_persistentroom": 1, 
+                                                        "muc#roomconfig_publicroom": is_public})
+        
+        print(f"Group {room_jid} created successfully!")
 
 
 
