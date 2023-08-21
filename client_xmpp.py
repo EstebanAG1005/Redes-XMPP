@@ -177,25 +177,25 @@ class Client(slixmpp.ClientXMPP):
         print('*' * 50)
 
     # Function to show every contact and group
+        # Simplified function to show every contact and their presence
     def show_contacts(self):
         groups = self.client_roster.groups()
         
         for group in groups:
             print('*' * 50)
             for username in groups[group]:
-                name = self.client_roster[username]['name']
                 if username != self.jid:
-                    if name:
-                        print('Nombre: ', name)
-                        print('Usuario: ', username)
-                    else:
-                        print('Usuario: ', username)
-
+                    print('usuario: ', username)
+                    
                     connections = self.client_roster.presence(username)
-                    for client, status in connections.items():
-                        print('Estado: ', status['status'])
+                    if not connections:
+                        print('estado: Offline')
+                    else:
+                        for _, status in connections.items():
+                            print('estado: ', status.get('show', 'Available') or 'Available') 
                     print('\n')
         print('*' * 50)
+
 
 
 
