@@ -1,9 +1,13 @@
 from client_xmpp import Client
-from getpass import getpass  # Importando para seguridad de contraseña
+from getpass import getpass
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
 
 # Initialization routine for a new user registration
 def initiate_registration(usr, pass_key):
     chat_client = Client(usr, pass_key)
+    
     # Plugins to enhance XMPP functionality
     plugins = [
         "xep_0030",
@@ -17,6 +21,7 @@ def initiate_registration(usr, pass_key):
         "xep_0045",
         "xep_0363",
     ]
+    
     for plugin in plugins:
         chat_client.register_plugin(plugin)
 
@@ -26,10 +31,10 @@ def initiate_registration(usr, pass_key):
     chat_client.process()
     chat_client.disconnect()
 
-
 # Routine to start chat session for a user
 def initiate_session(usr_id, pass_key):
     chat_client = Client(usr_id, pass_key)
+    
     # Plugins for XMPP session
     plugins = [
         "xep_0004",
@@ -42,6 +47,7 @@ def initiate_session(usr_id, pass_key):
         "xep_0045",
         "xep_0363",
     ]
+    
     for plugin in plugins:
         chat_client.register_plugin(plugin)
 
@@ -53,8 +59,6 @@ def initiate_session(usr_id, pass_key):
         print(f"Attempt failed due to {e}.")
 
     chat_client.disconnect()
-
-
 
 # Stylish Menu Display
 menu_display = """
