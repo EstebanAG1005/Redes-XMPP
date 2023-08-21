@@ -2,12 +2,16 @@ import slixmpp
 from slixmpp.exceptions import IqError, IqTimeout
 import logging
 import threading
+import aioconsole
+
 
 
 # Class wiht al the XMPP functions
 class Client(slixmpp.ClientXMPP):
     def __init__(self, jid, password):
         slixmpp.ClientXMPP.__init__(self, jid, password)
+
+        self.wait_for_input = True
 
         self.use_aiodns = False
 
@@ -54,6 +58,7 @@ class Client(slixmpp.ClientXMPP):
         [8] Send Group Message (Chat in a group)
         [9] Define Presence (Set your status)
         [10] Send File (Share a document or picture)
+        [11] Create Group (Create a new chat group)
 
         Type the number corresponding to your choice and hit Enter.
         """.format(self.jid)
@@ -89,7 +94,8 @@ class Client(slixmpp.ClientXMPP):
                 self.add_contact()
             elif choose == "6":
                 print("Send Private Message")
-                self.private_message()
+                recipient = input("Enter the recipient's JID: ")
+                await self.user_input(recipient)
             elif choose == "7":
                 print("Join Group")
                 self.join_group()
@@ -103,6 +109,9 @@ class Client(slixmpp.ClientXMPP):
                 print("Send File")
                 await self.send_file()
                 print("File Sent")
+            elif choose == "11":
+                print("Create Group")
+                self.create_group()
             else:
                 print("Invalid Option")
 
@@ -134,14 +143,39 @@ class Client(slixmpp.ClientXMPP):
     # Function to send a message to a group
     def send_group_message(self):
         room_jid = input("Enter the JID of the group you want to send a message to: ")
-        msg_body = input("Enter your message: ")
-        self.send_message(mto=room_jid, mbody=msg_body, mtype="groupchat")
+        while True:
+            self.change_status(room_jid, 'composing')
+            msg_body = input("Escribe <<volver>> si deseas regresar al menu \n Mensaje... ")
+            self.change_status(room_jid, 'paused')
 
-    # Function to send a private message
+            if msg_body.lower() == "volver":
+                self.change_status(room_jid, 'gone')
+                break
+            else:
+                self.send_message(mto=room_jid, mbody=msg_body, mtype="groupchat")
+
+
+    async def user_input(self, recipient):
+        while True:
+            msg_body = await aioconsole.ainput("Escribe <<volver>> si deseas regresar al menu \n Mensaje... ")
+            if msg_body.lower() == "volver":
+                break
+            else:
+                self.send_message(mto=recipient, mbody=msg_body, mtype="chat")
+                print(f"Message sent to {recipient}!")
+
     def private_message(self):
         recipient = input("Enter the recipient's JID: ")
-        msg_body = input("Enter your message: ")
-        self.send_message(mto=recipient, mbody=msg_body, mtype="chat")
+        while True:
+            msg_body = input("Escribe <<volver>> si deseas regresar al menu \n Mensaje... ")
+
+            if msg_body.lower() == "volver":
+                break
+            else:
+                self.send_message(mto=recipient, mbody=msg_body, mtype="chat")
+                print(f"Message sent to {recipient}!")
+
+
 
     # Function to show the detail from a specific contact
     def show_contact_details(self):
@@ -217,9 +251,37 @@ class Client(slixmpp.ClientXMPP):
             logging.error("No response from server.")
 
     # Function when you receive a message
-    def get_message(self, message):
+    async def get_message(self, message):
         if message["type"] in ("chat", "normal"):
             print("{} says: {}".format(message["from"], message["body"]))
+
+            self.change_status(message["from"], 'composing')
+            reply = input("Responder (o escribe <<volver>> para salir): ")
+            self.change_status(message["from"], 'paused')
+
+            if reply.lower() != "volver":
+                self.send_message(mto=message["from"], mbody=reply, mtype='chat')
+
+    
+        def create_group(self):
+            room_jid = input("Enter the JID of the group you want to create (e.g. room@server.tld): ")
+            nick = input("Enter the nickname you want to use as the group admin: ")
+            public = input("Do you want the group to be public? (yes/no): ").strip().lower()
+
+            # Default value is private (0)
+            is_public = 1 if public == 'yes' else 0
+            
+            # Join the group to create it.
+            self.plugin["xep_0045"].join_muc(room_jid, nick)
+
+            # Setting the room config
+            self.plugin["xep_0045"].set_room_config(room_jid, {"muc#roomconfig_persistentroom": 1, 
+                                                            "muc#roomconfig_publicroom": is_public})
+            
+            print(f"Group {room_jid} created successfully!")
+
+
+
 
     # Function to send notification while typing a message
     def send_notification(self, recipient, state):
