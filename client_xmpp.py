@@ -3,6 +3,8 @@ from slixmpp.exceptions import IqError, IqTimeout
 import logging
 import threading
 import aioconsole
+import sys
+import base64
 
 
 
@@ -155,20 +157,20 @@ class Client(slixmpp.ClientXMPP):
     def send_group_message(self):
         room_jid = input("Enter the JID of the group you want to send a message to: ")
         while True:
-            # self.change_status(room_jid, 'composing')
             msg_body = input("Escribe <<volver>> si deseas regresar al menu \n Mensaje... ")
-            # self.change_status(room_jid, 'paused')
-
             if msg_body.lower() == "volver":
-                # self.change_status(room_jid, 'gone')
                 break
             else:
                 self.send_message(mto=room_jid, mbody=msg_body, mtype="groupchat")
+                print(f"[You] {msg_body}")
+
+
     
     def message_callback(self, msg):
-        # Si el mensaje es de tipo "groupchat", entonces es un mensaje de grupo.
+        print(f"Received a message of type {msg['type']} from {msg['from']}: {msg['body']}")
         if msg['type'] == 'groupchat':
-            print(f"[{msg['from']}] {msg['body']}")
+            print(f"[{msg['from'].resource}] {msg['body']}")
+
 
 
     async def user_input(self, recipient):
@@ -178,19 +180,18 @@ class Client(slixmpp.ClientXMPP):
                 break
             else:
                 self.send_message(mto=recipient, mbody=msg_body, mtype="chat")
-                print(f"Message sent to {recipient}!")
+                print(f"[You] {msg_body}")
+
 
     def private_message(self):
         recipient = input("Enter the recipient's JID: ")
         while True:
             msg_body = input("Escribe <<volver>> si deseas regresar al menu \n Mensaje... ")
-
             if msg_body.lower() == "volver":
                 break
             else:
                 self.send_message(mto=recipient, mbody=msg_body, mtype="chat")
-                print(f"Message sent to {recipient}!")
-
+                print(f"[You] {msg_body}")
 
 
     # Function to show the detail from a specific contact
@@ -298,18 +299,32 @@ class Client(slixmpp.ClientXMPP):
             logging.error("Something went wrong.")
         except IqTimeout:
             logging.error("No response from server.")
+    
+    async def send_file(self):
+        recipient = input("Enter the recipient's JID: ")
+        filename = input("¿Que archivo deseas mandar? ")
+        with open(filename, "rb") as img_file:
+            message = base64.b64encode(img_file.read()).decode('utf-8')
+        self.send_message(mto=recipient, mbody=message, mtype="chat")
+        print("¡Archivo enviado exitosamente!")
 
     # Function when you receive a message
     async def get_message(self, message):
-        if message["type"] in ("chat", "normal"):
-            print("{} says: {}".format(message["from"], message["body"]))
+        if message["type"] == "chat" or message["type"] == "normal":
+            if len(message["body"]) > 3000:
+                received_data = base64.b64decode(message["body"])
+                with open("received_file.png", "wb") as file:
+                    file.write(received_data)
+                print("Received a file and saved it as 'received_file.png'")
+            else:
+                print("{} says: {}".format(message["from"], message["body"]))
 
-            self.change_status(message["from"], 'composing')
-            reply = input("Responder (o escribe <<volver>> para salir): ")
-            self.change_status(message["from"], 'paused')
+                self.change_status(message["from"], 'composing')
+                reply = input("Responder (o escribe <<volver>> para salir): ")
+                self.change_status(message["from"], 'paused')
 
-            if reply.lower() != "volver":
-                self.send_message(mto=message["from"], mbody=reply, mtype='chat')
+                if reply.lower() != "volver":
+                    self.send_message(mto=message["from"], mbody=reply, mtype='chat')
 
     
     def create_group(self):
