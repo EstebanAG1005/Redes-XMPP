@@ -81,7 +81,7 @@ class Client(slixmpp.ClientXMPP):
             elif choose == "2":
                 print("Delete Account")
                 show = False
-                self.delete_account()
+                await self.delete_account()
                 print("Account Deleted")
             elif choose == "3":
                 print("Show Contacts")
@@ -118,19 +118,24 @@ class Client(slixmpp.ClientXMPP):
             await self.get_roster()
 
     # Function to delete an account from the server
-    def delete_account(self):
+    async def delete_account(self):
         try:
-            self.register_plugin("xep_0030")  # Service Discovery
-            self.register_plugin("xep_0004")  # Data forms
-            self.register_plugin("xep_0066")  # Out-of-band Data
-            self.register_plugin("xep_0077")  # In-band Registration
-            reg = self.plugin["xep_0077"]
-            reg.unregister()
-            print("Account Deleted Successfully!")
-        except IqError as e:
-            print("Could not delete account:", e.iq["error"]["text"])
+            if input("Are you sure you want to delete? [yes/no]: ") == "yes":
+                self.register_plugin("xep_0077") # In-band Registration
+
+                resp = self.Iq()
+                resp["type"] = "set"
+                resp["from"] = self.boundjid.user
+                resp["register"]["remove"] = True
+
+                await resp.send()
+                logging.info("Account deleted successfully.")
+                self.logout()
+                sys.exit()  # Termina el programa.
+        except IqError:
+            logging.error("Something went wrong.")
         except IqTimeout:
-            print("Request timed out")
+            logging.error("No response from server.")
 
     # Function to join a group chat
     def join_group(self):
