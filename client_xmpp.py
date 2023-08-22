@@ -5,6 +5,8 @@ import threading
 import aioconsole
 import sys
 import base64
+import os
+import time
 
 
 
@@ -18,6 +20,8 @@ class Client(slixmpp.ClientXMPP):
         self.use_aiodns = False
 
         self.just_registered = False
+
+        self.is_listening = False
 
         
         
@@ -156,20 +160,29 @@ class Client(slixmpp.ClientXMPP):
     # Function to send a message to a group
     def send_group_message(self):
         room_jid = input("Enter the JID of the group you want to send a message to: ")
-        while True:
-            msg_body = input("Escribe <<volver>> si deseas regresar al menu \n Mensaje... ")
-            if msg_body.lower() == "volver":
-                break
-            else:
-                self.send_message(mto=room_jid, mbody=msg_body, mtype="groupchat")
-                print(f"[You] {msg_body}")
+
+        # Este método simplemente espera a que el usuario escriba un mensaje y luego lo envía.
+        def send_loop():
+            while True:
+                msg_body = input("Escribe <<volver>> si deseas regresar al menu \n Mensaje... ")
+                if msg_body.lower() == "volver":
+                    break
+                else:
+                    self.send_message(mto=room_jid, mbody=msg_body, mtype="groupchat")
+
+        # Aquí creamos un hilo que se encargará de esperar y enviar mensajes.
+        send_thread = threading.Thread(target=send_loop)
+        send_thread.start()
+
+        # Esperamos a que el hilo termine (es decir, cuando el usuario escribe "volver").
+        send_thread.join()
 
 
-    
     def message_callback(self, msg):
-        print(f"Received a message of type {msg['type']} from {msg['from']}: {msg['body']}")
         if msg['type'] == 'groupchat':
             print(f"[{msg['from'].resource}] {msg['body']}")
+        elif msg['type'] != 'groupchat':
+            print(f"Received a message of type {msg['type']} from {msg['from']}: {msg['body']}")
 
 
 
