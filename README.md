@@ -6,27 +6,17 @@ This project is an XMPP chat client built using the `slixmpp` library. It offers
 ## Features:
 
 ### Client Features:
-1. Initialize the client with JID and password.
-2. Set up logging for the client.
-3. Start the XMPP session.
-4. Delete an XMPP account.
-5. Join an XMPP group.
-6. Send a group message.
-7. Continuous message sending loop.
-8. Callback for received messages.
-9. Get user input during a session.
-10. Send private messages.
-11. Display contact details.
-12. Display a list of contacts.
-13. Add a new contact.
-14. Handle subscription requests.
-15. Change online presence (e.g., online, away).
-16. Send files.
-17. Receive and handle messages.
-18. Create a group.
-19. Send notifications (e.g., typing).
-20. Receive and handle notifications (e.g., another user typing).
-21. Register a new user.
+      [1] Log Out (End your session)
+      [2] Delete Account (Remove your account)
+      [3] Show contacts (View online friends)
+      [4] Contact Details (Info on a specific contact)
+      [5] Add Contact (Add someone new)
+      [6] Send Private Message (Chat one-on-one)
+      [7] Join Group (Join a group chat)
+      [8] Send Group Message (Chat in a group)
+      [9] Define Presence (Set your status)
+      [10] Send File (Share a document or picture)
+      [11] Create Group (Create a new chat group)
 
 ### Utility Features:
 1. Initiate registration for a new user.
@@ -46,6 +36,12 @@ cd <project_directory>
 ```bash
 pip install -r requirements.txt
 ```
+
+## Usage
+
+It is recommended to use a python version lower than 3.9
+
+py -3.9 menu_functions.py
 
 ## Dependencies:
 
