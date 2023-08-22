@@ -31,7 +31,8 @@ class Client(slixmpp.ClientXMPP):
         self.add_event_handler("register", self.register)
         self.add_event_handler("chatstate_composing", self.receive_notification)
         self.add_event_handler("presence_subscribe", self.subscription_request)  # Add this line to handle subscription requests
-        self.add_event_handler("message", self.message_callback)
+        self.add_event_handler("message", self.get_message)
+
 
 
     def setup_logging(self, level):
@@ -315,29 +316,60 @@ class Client(slixmpp.ClientXMPP):
     
     async def send_file(self):
         recipient = input("Enter the recipient's JID: ")
-        filename = input("¿Que archivo deseas mandar? ")
-        with open(filename, "rb") as img_file:
-            message = base64.b64encode(img_file.read()).decode('utf-8')
-        self.send_message(mto=recipient, mbody=message, mtype="chat")
+        filename = input("¿Qué archivo deseas mandar? ")
+        file_extension = os.path.splitext(filename)[1]
+
+        # Codificar el archivo según su extensión.
+        with open(filename, "rb") as file:
+            encoded_content = base64.b64encode(file.read()).decode('utf-8')
+            if file_extension == ".txt":
+                message_body = "FILE:TXT:" + encoded_content
+            elif file_extension in [".png", ".jpg", ".jpeg"]:
+                message_body = "FILE:IMG:" + encoded_content
+            else:
+                print("Tipo de archivo no soportado.")
+                return
+
+        self.send_message(mto=recipient, mbody=message_body, mtype="chat")
         print("¡Archivo enviado exitosamente!")
 
     # Function when you receive a message
-    async def get_message(self, message):
-        if message["type"] == "chat" or message["type"] == "normal":
-            if len(message["body"]) > 3000:
-                received_data = base64.b64decode(message["body"])
-                with open("received_file.png", "wb") as file:
-                    file.write(received_data)
-                print("Received a file and saved it as 'received_file.png'")
+    def get_message(self, message):
+        if message["type"] in ("chat", "normal"):
+            body = message["body"]
+            
+            # Obtener el tiempo actual para crear un nombre de archivo único.
+            timestamp = int(time.time())
+            
+            if body.startswith("FILE:TXT:"):
+                encoded_content = body.replace("FILE:TXT:", "").encode('utf-8')
+                decoded_content = base64.decodebytes(encoded_content)
+                
+                file_name = f"recibido_{timestamp}.txt"
+                with open(file_name, "w", encoding="utf-8") as txt_file:
+                    txt_file.write(decoded_content.decode('utf-8'))
+                print(f"Archivo TXT recibido y guardado como {file_name}")
+
+            elif body.startswith("FILE:IMG:"):
+                encoded_content = body.replace("FILE:IMG:", "").encode('utf-8')
+                decoded_content = base64.decodebytes(encoded_content)
+                
+                # Aquí solo estoy guardando como .png para simplificar, pero podrías mejorar esto.
+                file_name = f"recibido_{timestamp}.png"
+                with open(file_name, "wb") as img_file:
+                    img_file.write(decoded_content)
+                print(f"Imagen recibida y guardada como {file_name}")
+
             else:
-                print("{} says: {}".format(message["from"], message["body"]))
+                print("{} dice: {}".format(message["from"], body))
 
-                self.change_status(message["from"], 'composing')
-                reply = input("Responder (o escribe <<volver>> para salir): ")
-                self.change_status(message["from"], 'paused')
+        elif message['type'] == 'groupchat':
+            print(f"[{message['from'].resource}] {message['body']}")
+        else:
+            print(f"Received a message of type {message['type']} from {message['from']}: {message['body']}")
 
-                if reply.lower() != "volver":
-                    self.send_message(mto=message["from"], mbody=reply, mtype='chat')
+
+
 
     
     def create_group(self):
