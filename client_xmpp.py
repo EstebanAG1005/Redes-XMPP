@@ -143,7 +143,6 @@ class Client(slixmpp.ClientXMPP):
 
                 await resp.send()
                 logging.info("Account deleted successfully.")
-                self.logout()
                 sys.exit()  # Termina el programa.
         except IqError:
             logging.error("Something went wrong.")
@@ -239,23 +238,28 @@ class Client(slixmpp.ClientXMPP):
     # Function to show every contact and group
     def show_contacts(self):
         groups = self.client_roster.groups()
-        
+
         for group in groups:
             for username in groups[group]:
                 if username != self.jid:
                     connections = self.client_roster.presence(username)
                     if not connections:
-                        status = 'Offline'
+                        display_status = 'Offline'
                     else:
                         primary_status = list(connections.values())[0]
-                        status = primary_status.get('show')
-                        # Check if status is None or an empty string, then set to 'Available'.
-                        if not status:
-                            status = 'Available'
+                        show = primary_status.get('show')
+                        custom_status = primary_status.get('status')
+                        # Check if show is None or an empty string, then set to 'Available'.
+                        if not show:
+                            show = 'Available'
                         # Capitalize the first letter.
-                        status = status.capitalize()
+                        show = show.capitalize()
+                        # Build the display status string.
+                        display_status = f"{show}" if not custom_status else f"{show} ({custom_status})"
 
-                    print(f"{username}: {status}")
+                    print(f"{username}: {display_status}")
+
+
 
 
 
@@ -283,29 +287,28 @@ class Client(slixmpp.ClientXMPP):
 
     # Function to change the presence
     def change_presence(self, show=None):
-        # Set presence messages
+        """Change user presence based on the value of show."""
+        
+        # Get the presence 'show' value
         if not show:
             show = input("show: [chat, away, xa, dnd, custom] ")
 
-        if show not in ["chat", "away", "xa", "dnd", "custom"]:
-            show = "chat"
+        # Define the status based on the 'show' value
+        statuses = {
+            "chat": "Available",
+            "away": "Unavailable",
+            "xa": "Bye",
+            "dnd": "Do not Disturb"
+        }
 
-        if show == "chat":
-            status = "Available"
-        elif show == "away":
-            status = "Unavailable"
-        elif show == "xa":
-            status = "Bye"
-        elif show == "dnd":
-            status = "Do not Disturb"
-        elif show == "custom":
-            show = input("show: ")
+        if show == "custom":
+            # Ask for the status message; keep 'show' as one of the standard states.
             status = input("status: ")
-
-        if show not in ["chat", "away", "xa", "dnd"]:
-            show = "chat"
-            status = "Available"
-
+            show = "chat"  # Default to 'chat' or any other appropriate value.
+        else:
+            status = statuses.get(show, "Available")
+        
+        # Attempt to send the presence
         try:
             self.send_presence(pshow=show, pstatus=status)
             logging.info("Presence setted.")
